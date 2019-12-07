@@ -12,8 +12,9 @@
 #pragma clang diagnostic ignored "-Wmissing-noreturn"
 
 #define BUFF_SIZE (1024)
-#define NUM_COMMANDS (2)
+#define NUM_COMMANDS (1)
 #define MAX_NR_ARGS (10)
+#define MAX_CHAIN_CMD (10)
 
 enum Command_Type {
     CUSTOM, SYSTEM
@@ -27,10 +28,15 @@ typedef struct  {
     int id_custom_command;
 }Command;
 
+typedef struct{
+    Command cmds[MAX_CHAIN_CMD];
+    int nr_cmds;
+    int op[MAX_CHAIN_CMD-1];
+}LogicCommand;
+
 char *currentDir[BUFF_SIZE];
 
 char *custom_commands[NUM_COMMANDS] = {
-        "clear",
         "cd"
 };
 
@@ -97,6 +103,44 @@ Command parseCommand(char *line) {
     return currCommand;
 }
 
+LogicCommand parseLogicCommand(const char *line){
+    int cnt = 0;
+    char *str[MAX_CHAIN_CMD];
+    LogicCommand lgc;
+
+    str[0] = malloc(BUFF_SIZE);
+    for(int i = 0; line[i] != '\0'; i++){
+        if(line[i] == '&' && line[i + 1] == '&'){
+            cnt++;
+            str[cnt] = malloc(BUFF_SIZE);
+            i++;
+        }
+    }
+
+    cnt = 0;
+    for(int i = 0; line[i] != '\0'; i++){
+        if(line[i] == '&' && line[i + 1] == '&'){
+            cnt++;
+            i++;
+            lgc.op[i - 1] = 0;
+        } else{
+            str[cnt][i] = line[i];
+        }
+    }
+
+
+    for(int i = 0;  i <= cnt; i++){
+        lgc.cmds[i] = parseCommand(str[i]);
+        printf("cmd found = %s from string: %s \n",lgc.cmds[i].raw_command, str[i]);
+    }
+
+    lgc.nr_cmds = cnt;
+    if(cnt == 0){
+        lgc.op[0] = 0;
+    }
+    return  lgc;
+}
+
 int executeCustomCommand(Command currCommand){
     switch (currCommand.id_custom_command){
         case 0: {
@@ -130,7 +174,7 @@ int executeSystemCommand(Command cmd) {
         wait(&status);
         return status;
     }
-
+    return 0;
 }
 
 int executeCommand(Command currCommand){
@@ -145,6 +189,27 @@ int executeCommand(Command currCommand){
     return -1;
 }
 
+int executeLogicCommand(LogicCommand lgcmd){
+    pid_t slaves[MAX_CHAIN_CMD] ;
+
+    for(int i = 0; i < lgcmd.nr_cmds; i++){
+        slaves[i] = fork();
+        if(slaves[i] < 0){
+            printf("ERROR: Unable to fork\n\n");
+            return -1;
+        }
+        if(slaves[i] == 0){
+            executeCommand(lgcmd.cmds[i]);
+        }
+        else {
+            int status = 0;
+            wait(&status);
+            if(status!=-1)
+                return -2;
+        }
+    }
+    return 0;
+}
 
 int main() {
 
@@ -152,7 +217,7 @@ int main() {
 
     while ( 1 ) {
         char* line = readInput();
-        executeCommand(parseCommand(line));
+        (parseLogicCommand(line));
     }
 
 
