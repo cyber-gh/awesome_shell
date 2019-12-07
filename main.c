@@ -24,7 +24,7 @@ typedef struct  {
     char *arguments[MAX_NR_ARGS];
     int nr_args;
     enum Command_Type commandType;
-
+    int id_custom_command;
 }Command;
 
 char *currentDir[BUFF_SIZE];
@@ -57,44 +57,94 @@ char *readInput() {
     return line;
 }
 
-int isCustomCommand(Command command) {
-    for (int i = 0; i < NUM_COMMANDS; i++) {
-        if (strcmp(command, custom_commands[i]) == 0) return i;
+Command parseCommand(char *line) {
+
+    int nr_args = 0;
+    char *str[MAX_NR_ARGS];
+    char *ptr;
+    char sep[] = " ";
+    ptr = strtok(line,sep);
+    while(ptr != NULL){
+        str[nr_args] = malloc(strlen(ptr) + 1);
+        strcpy(str[nr_args], ptr);
+
+        ptr = strtok(NULL,sep);
+        nr_args++;
     }
+    //TODO CHECK
 
-    return -1;
-}
+    Command currCommand;
+    strcpy(currCommand.raw_command,str[0]);
 
-int executeCustomCommand(int commandNr) {
-    switch (commandNr) {
-        case 0: {
-            printf("tryig to execute clear\n");
+    currCommand.nr_args = nr_args;
+
+    for(int i = 0; i < nr_args; i++){
+        currCommand.arguments[i] = malloc(strlen(str[i] ) + 1);
+        strcpy(currCommand.arguments[i],str[i]);
+        free(str[i]);
+    }
+    currCommand.arguments[nr_args] = NULL;
+    currCommand.commandType = SYSTEM;
+    for(int i = 0; i < NUM_COMMANDS; i++){
+        if(strcmp(custom_commands[i],currCommand.raw_command) == 0){
+            currCommand.commandType = CUSTOM;
+            currCommand.id_custom_command = i;
             break;
         }
-        case 1: {
-            printf("trying to execute hello\n");
+    }
+
+
+    return currCommand;
+}
+
+int executeCustomCommand(Command currCommand){
+    switch (currCommand.id_custom_command){
+        case 0: {
+            printf("trying to clear\n");
+            break;
+        }
+        case 1:{
+            printf("trying to cd\n");
             break;
         }
 
         default: {
-            printf("Error: Unknown command");
+            printf("Unknown command\n");
+            return -1;
         }
     }
+    return 0;
 }
 
-int interpretCommand(char* command) {
-    int commandNr = isCustomCommand(command);
-    if (commandNr != -1) {
-        executeCustomCommand(commandNr);
-        return 0;
+int executeSystemCommand(Command cmd) {
+
+    pid_t worker = fork();
+    if (worker < 0) {
+        printf("Error: Unable to fork child \n\n");
+        return -1;
+    }
+    if (worker == 0) {
+        execvp(cmd.raw_command, cmd.arguments );
+    } else {
+        int status = 0;
+        wait(&status);
+        return status;
+    }
+
+}
+
+int executeCommand(Command currCommand){
+    if(currCommand.commandType == CUSTOM){
+        return executeCustomCommand(currCommand);
+
+    }
+    if (currCommand.commandType == SYSTEM) {
+        return executeSystemCommand(currCommand);
     }
 
     return -1;
 }
 
-void parseCommand() {
-
-}
 
 int main() {
 
@@ -102,7 +152,7 @@ int main() {
 
     while ( 1 ) {
         char* line = readInput();
-        interpretCommand(line);
+        executeCommand(parseCommand(line));
     }
 
 
