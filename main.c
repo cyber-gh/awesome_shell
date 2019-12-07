@@ -118,22 +118,24 @@ LogicCommand parseLogicCommand(const char *line){
     }
 
     cnt = 0;
-    for(int i = 0, idx = 0; line[i] != '\0'; i++, idx++){
+    for(int i = 0, idx = 0; line[i] != '\0'; i++){
         if(line[i] == '&' && line[i + 1] == '&'){
-            printf("reached & ad %d\n", i );
             cnt++;
             i++;
             lgc.op[i - 1] = 0;
             idx = 0;
         } else{
             str[cnt][idx] = line[i];
+//            printf(" copy cnt %d idx %d from line %d\n", cnt, idx, i);
+            str[cnt][idx+1] = '\0';
+            idx++;
         }
     }
 
 
     for(int i = 0;  i <= cnt; i++){
         lgc.cmds[i] = parseCommand(str[i]);
-        printf("cmd found = %s from string: %s \n",lgc.cmds[i].raw_command, str[i]);
+//        printf("cmd found = %s from string: %s \n",lgc.cmds[i].raw_command, str[i]);
     }
 
     lgc.nr_cmds = cnt;
@@ -206,8 +208,8 @@ int executeLogicCommand(LogicCommand lgcmd){
         else {
             int status = 0;
             wait(&status);
-            if(status!=-1)
-                return -2;
+            if(status == -1)
+                return -1;
         }
     }
     return 0;
@@ -219,7 +221,7 @@ int main() {
 
     while ( 1 ) {
         char* line = readInput();
-        (parseLogicCommand(line));
+        executeLogicCommand(parseLogicCommand(line));
     }
 
 
