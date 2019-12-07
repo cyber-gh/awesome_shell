@@ -12,7 +12,7 @@
 #pragma clang diagnostic ignored "-Wmissing-noreturn"
 
 #define BUFF_SIZE (1024)
-#define NUM_COMMANDS (1)
+#define NUM_COMMANDS (3)
 #define MAX_NR_ARGS (10)
 #define MAX_CHAIN_CMD (10)
 
@@ -44,7 +44,9 @@ typedef struct{
 char *currentDir[BUFF_SIZE];
 
 char *custom_commands[NUM_COMMANDS] = {
-        "cd"
+        "cd",
+        "exit",
+        "help"
 };
 
 const char *getUserName()
@@ -196,6 +198,10 @@ LogicCommand parseLogicCommand(const char *line){
     return  lgc;
 }
 
+void openHelp(){
+    puts("\n  Welcome! I heard that you need help. See documentation :)");
+}
+
 /**
  * only call this from a child process
  * @param currCommand
@@ -217,7 +223,14 @@ int executeCustomCommand(Command currCommand){
             return 0;
             break;
         }
-
+        case 1:{
+            printf("GOODBYE\n");
+            exit(0);
+        }
+        case 2:{
+            openHelp();
+            return 1;
+        }
         default: {
             printf("Unknown command\n");
             return -1;
