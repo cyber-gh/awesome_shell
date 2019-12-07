@@ -272,6 +272,24 @@ int executeCommand(Command currCommand){
     return -1;
 }
 
+int spawnProcess(int in, int out, Command cmd) {
+    pid_t pid;
+    if ( (pid = fork() == 0) ) {
+        if (in != 0) {
+            dup2(in, 0);
+            close(in);
+        }
+
+        if (out != 1) {
+            dup2(out, 1);
+            close(out);
+        }
+
+        return executeCommand(cmd);
+    }
+    return pid;
+}
+
 int executePipeCommand2(Command cmd1, Command cmd2) {
     int pid;
     int pipefd[2];
@@ -296,16 +314,31 @@ int executePipeCommand2(Command cmd1, Command cmd2) {
     return 0;
 }
 
-int executePipeCommand(PipeCommand pcmd, int idx) {
+int executePipeCommand(PipeCommand pcmd) {
     //TODO
     if(pcmd.nr_cmds == 1){
         executeCommand(pcmd.cmds[0]);
     }
-    //printf("parse pipes = %d\n", pcmd.nr_cmds);
-    executePipeCommand2(pcmd.cmds[idx], pcmd.cmds[idx + 1]);
 
+    pid_t pid;
+    int in, pfd[2];
 
-    return 0;
+    in = 0;
+    for (int i = 0; i < pcmd.nr_cmds - 1; i++) {
+        pipe(pfd);
+
+        spawnProcess(in, pfd[1], pcmd.cmds[i]);
+
+        close(pfd[1]);
+
+        in = pfd[0];
+    }
+
+    if (in != 0) {
+        dup2(in, 0);
+    }
+
+    return executeCommand(pcmd.cmds[pcmd.nr_cmds - 1]);
 
 }
 
@@ -329,7 +362,7 @@ int executeLogicCommand(LogicCommand lgcmd){
         }
 
         if(slaves[i] == 0){
-            executePipeCommand(lgcmd.pcmds[i], 0);
+            executePipeCommand(lgcmd.pcmds[i]);
         } else {
             int status = 0;
             wait(&status);
@@ -343,6 +376,8 @@ int executeLogicCommand(LogicCommand lgcmd){
     }
     return 0;
 }
+
+
 
 int main() {
 
