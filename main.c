@@ -110,7 +110,7 @@ LogicCommand parseLogicCommand(const char *line){
 
     str[0] = malloc(BUFF_SIZE);
     for(int i = 0; line[i] != '\0'; i++){
-        if(line[i] == '&' && line[i + 1] == '&'){
+        if( (line[i] == '&' && line[i + 1] == '&') || (line[i] == '|' && line[i + 1] == '|')){
             cnt++;
             str[cnt] = malloc(BUFF_SIZE);
             i++;
@@ -119,10 +119,11 @@ LogicCommand parseLogicCommand(const char *line){
 
     cnt = 0;
     for(int i = 0, idx = 0; line[i] != '\0'; i++){
-        if(line[i] == '&' && line[i + 1] == '&'){
+        if( (line[i] == '&' && line[i + 1] == '&') || (line[i] == '|' && line[i + 1] == '|')) {
             cnt++;
             i++;
-            lgc.op[i - 1] = 0;
+            lgc.op[cnt - 1] = 0;
+            if (line[i] == '|' ) lgc.op[cnt - 1] = 1;
             idx = 0;
         } else{
             str[cnt][idx] = line[i];
@@ -145,23 +146,24 @@ LogicCommand parseLogicCommand(const char *line){
     return  lgc;
 }
 
+/**
+ * only call this from a child process
+ * @param currCommand
+ * @return
+ */
 int executeCustomCommand(Command currCommand){
     switch (currCommand.id_custom_command){
         case 0: {
-            printf("trying to clear\n");
-            break;
-        }
-        case 1:{
             printf("trying to cd\n");
+             exit(-1);
             break;
         }
 
         default: {
             printf("Unknown command\n");
-            return -1;
+            exit(-1);
         }
     }
-    return 0;
 }
 
 int executeSystemCommand(Command cmd) {
@@ -176,18 +178,23 @@ int executeSystemCommand(Command cmd) {
     } else {
         int status = 0;
         wait(&status);
+//        printf("command %s return status %d\n", cmd.raw_command, status);
         return status;
     }
     return 0;
 }
-
+/**
+ * only call this from a process child
+ * @param currCommand
+ * @return
+ */
 int executeCommand(Command currCommand){
     if(currCommand.commandType == CUSTOM){
-        return executeCustomCommand(currCommand);
+        exit( executeCustomCommand(currCommand));
 
     }
     if (currCommand.commandType == SYSTEM) {
-        return executeSystemCommand(currCommand);
+        exit( executeSystemCommand(currCommand));
     }
 
     return -1;
@@ -196,7 +203,7 @@ int executeCommand(Command currCommand){
 int executeLogicCommand(LogicCommand lgcmd){
     pid_t slaves[MAX_CHAIN_CMD] ;
 
-    for(int i = 0; i < lgcmd.nr_cmds; i++){
+    for(int i = 0; i <= lgcmd.nr_cmds; i++){
         slaves[i] = fork();
         if(slaves[i] < 0){
             printf("ERROR: Unable to fork\n\n");
@@ -204,12 +211,15 @@ int executeLogicCommand(LogicCommand lgcmd){
         }
         if(slaves[i] == 0){
             executeCommand(lgcmd.cmds[i]);
-        }
-        else {
+        } else {
             int status = 0;
             wait(&status);
-            if(status == -1)
-                return -1;
+//            printf("command %d exited with status %d", i, status);
+            if(status != 0 && lgcmd.op[i] == 0)
+                return 0;
+            if (status == 0 && lgcmd.op[i] == 1) {
+                return 0;
+            }
         }
     }
     return 0;
