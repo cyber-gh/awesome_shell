@@ -118,13 +118,15 @@ LogicCommand parseLogicCommand(const char *line){
     }
 
     cnt = 0;
-    for(int i = 0; line[i] != '\0'; i++){
+    for(int i = 0, idx = 0; line[i] != '\0'; i++, idx++){
         if(line[i] == '&' && line[i + 1] == '&'){
+            printf("reached & ad %d\n", i );
             cnt++;
             i++;
             lgc.op[i - 1] = 0;
+            idx = 0;
         } else{
-            str[cnt][i] = line[i];
+            str[cnt][idx] = line[i];
         }
     }
 
