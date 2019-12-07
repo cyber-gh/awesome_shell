@@ -31,8 +31,15 @@ typedef struct  {
 typedef struct{
     Command cmds[MAX_CHAIN_CMD];
     int nr_cmds;
-    int op[MAX_CHAIN_CMD-1];
+}PipeCommand;
+
+typedef struct{
+    PipeCommand pcmds[MAX_CHAIN_CMD];
+    int nr_pcmds;
+    int op[MAX_CHAIN_CMD - 1];
 }LogicCommand;
+
+
 
 char *currentDir[BUFF_SIZE];
 
@@ -58,10 +65,12 @@ void updateCurrentDir() {
 
 char *readInput() {
     char *prompt[BUFF_SIZE];
+    updateCurrentDir();
     sprintf(prompt, "%s:%s: ", getUserName(),  currentDir);
     char* line = readline(prompt);
     return line;
 }
+
 
 Command parseCommand(char *line) {
 
@@ -77,7 +86,7 @@ Command parseCommand(char *line) {
         ptr = strtok(NULL,sep);
         nr_args++;
     }
-    //TODO CHECK
+    //TODO CHECK if empty or something else
 
     Command currCommand;
     strcpy(currCommand.raw_command,str[0]);
@@ -101,6 +110,46 @@ Command parseCommand(char *line) {
 
 
     return currCommand;
+}
+
+PipeCommand parsePipeCommand(const char *line) {
+
+    int cnt = 0;
+    char *str[MAX_CHAIN_CMD];
+    PipeCommand pcmd;
+    str[0] = malloc(BUFF_SIZE);
+
+    for (int i = 0; line[i] != '\0'; i++) {
+        if (line[i] == '|') {
+            cnt++;
+            str[cnt] = malloc(BUFF_SIZE);
+            i++;
+        }
+    }
+
+    cnt = 0;
+
+    for (int i = 0, idx = 0; line[i] != '\0'; i++) {
+        if (line[i] == '|') {
+            cnt++;
+            i++;
+            idx = 0;
+        } else {
+            str[cnt][idx] = line[i];
+            str[cnt][idx + 1] = '\0';
+            idx++;
+        }
+    }
+
+    for (int i = 0; i <= cnt; i++) {
+
+        pcmd.cmds[i] = parseCommand(str[i]);
+        free(str[i]);
+    }
+    pcmd.nr_cmds = cnt + 1;
+
+
+    return pcmd;
 }
 
 LogicCommand parseLogicCommand(const char *line){
@@ -135,11 +184,12 @@ LogicCommand parseLogicCommand(const char *line){
 
 
     for(int i = 0;  i <= cnt; i++){
-        lgc.cmds[i] = parseCommand(str[i]);
-//        printf("cmd found = %s from string: %s \n",lgc.cmds[i].raw_command, str[i]);
+        lgc.pcmds[i] = parsePipeCommand(str[i]);
+        free(str[i]);
+//        printf("cmd found = %s from string: %s \n",lgc.pcmds[i].raw_command, str[i]);
     }
 
-    lgc.nr_cmds = cnt;
+    lgc.nr_pcmds = cnt;
     if(cnt == 0){
         lgc.op[0] = 0;
     }
@@ -200,17 +250,46 @@ int executeCommand(Command currCommand){
     return -1;
 }
 
+int executePipeCommand(PipeCommand pcmd) {
+    //TODO
+    if(pcmd.nr_cmds == 1){
+        executeCommand(pcmd.cmds[0]);
+    }
+
+    int pid;
+    int pipefd[2];
+
+    pipe(pipefd);
+
+    pid = fork();
+    if (pid == 0) {
+        dup2(pipefd[0], 0);
+        close(pipefd[1]);
+        Command cmd = pcmd.cmds[1];
+        execvp(cmd.raw_command, cmd.arguments);
+    } else {
+        dup2(pipefd[1], 1);
+        close(pipefd[0]);
+
+        Command cmd = pcmd.cmds[0];
+        execvp(cmd.raw_command, cmd.arguments);
+    }
+
+    wait(NULL);
+    return 0;
+}
+
 int executeLogicCommand(LogicCommand lgcmd){
     pid_t slaves[MAX_CHAIN_CMD] ;
 
-    for(int i = 0; i <= lgcmd.nr_cmds; i++){
+    for(int i = 0; i <= lgcmd.nr_pcmds; i++){
         slaves[i] = fork();
         if(slaves[i] < 0){
             printf("ERROR: Unable to fork\n\n");
             return -1;
         }
         if(slaves[i] == 0){
-            executeCommand(lgcmd.cmds[i]);
+            executePipeCommand(lgcmd.pcmds[i]);
         } else {
             int status = 0;
             wait(&status);
