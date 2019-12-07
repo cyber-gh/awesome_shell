@@ -231,6 +231,9 @@ int main() {
 
     while ( 1 ) {
         char* line = readInput();
+        if(line != '\0'){
+            add_history(line);
+        }
         executeLogicCommand(parseLogicCommand(line));
     }
 
