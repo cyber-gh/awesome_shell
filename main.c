@@ -265,14 +265,14 @@ int executePipeCommand(PipeCommand pcmd) {
     if (pid == 0) {
         dup2(pipefd[0], 0);
         close(pipefd[1]);
-        Command cmd = pcmd.cmds[1];
-        execvp(cmd.raw_command, cmd.arguments);
+        executeCommand(pcmd.cmds[1]);
+//        Command cmd = pcmd.cmds[1];
+//        execvp(cmd.raw_command, cmd.arguments);
     } else {
         dup2(pipefd[1], 1);
         close(pipefd[0]);
 
-        Command cmd = pcmd.cmds[0];
-        execvp(cmd.raw_command, cmd.arguments);
+        executeCommand(pcmd.cmds[0]);
     }
 
     wait(NULL);
