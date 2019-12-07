@@ -272,35 +272,41 @@ int executeCommand(Command currCommand){
     return -1;
 }
 
-int executePipeCommand(PipeCommand pcmd) {
+int executePipeCommand2(Command cmd1, Command cmd2) {
+    int pid;
+    int pipefd[2];
+
+    pipe(pipefd);
+
+    pid = fork();
+    if (pid == 0) {
+        dup2(pipefd[0], STDIN_FILENO);
+        close(pipefd[1]);
+        executeCommand(cmd2);
+    } else {
+        dup2(pipefd[1], STDOUT_FILENO);
+        close(pipefd[0]);
+
+        executeCommand(cmd1);
+
+        wait(NULL);
+    }
+
+
+    return 0;
+}
+
+int executePipeCommand(PipeCommand pcmd, int idx) {
     //TODO
     if(pcmd.nr_cmds == 1){
         executeCommand(pcmd.cmds[0]);
     }
-    printf("parse pipes = %d\n", pcmd.nr_cmds);
-    for (int i = 1; i < pcmd.nr_cmds; i++) {
+    //printf("parse pipes = %d\n", pcmd.nr_cmds);
+    executePipeCommand2(pcmd.cmds[idx], pcmd.cmds[idx + 1]);
 
-        int pid;
-        int pipefd[2];
-
-        pipe(pipefd);
-
-        pid = fork();
-        if (pid == 0) {
-            dup2(pipefd[0], STDIN_FILENO);
-            close(pipefd[1]);
-            executeCommand(pcmd.cmds[i]);
-        } else {
-            dup2(pipefd[1], STDOUT_FILENO);
-            close(pipefd[0]);
-
-            executeCommand(pcmd.cmds[i - 1]);
-
-            wait(NULL);
-        }
-    }
 
     return 0;
+
 }
 
 int executeLogicCommand(LogicCommand lgcmd){
@@ -323,7 +329,7 @@ int executeLogicCommand(LogicCommand lgcmd){
         }
 
         if(slaves[i] == 0){
-            executePipeCommand(lgcmd.pcmds[i]);
+            executePipeCommand(lgcmd.pcmds[i], 0);
         } else {
             int status = 0;
             wait(&status);
