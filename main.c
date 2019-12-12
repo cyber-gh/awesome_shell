@@ -242,15 +242,13 @@ int executeSystemCommand(Command cmd) {
         printf("Error: Unable to fork child \n\n");
         return -1;
     }
-    int status = 0;
     if (worker == 0) {
         execvp(cmd.raw_command, cmd.arguments );
-//        status = -1;
-        exit(-1);
+//        int wtf = 1 / 0;
+        exit(SIGILL);
     } else {
-
+        int status = 0;
         wait(&status);
-//        printf("system command %s return status %d\n", cmd.raw_command, status);
         return status;
     }
     return 0;
@@ -266,9 +264,7 @@ int executeCommand(Command currCommand){
 
     }
     if (currCommand.commandType == SYSTEM) {
-        int status = executeSystemCommand(currCommand);
-//        printf("returned status %d\n", status);
-        return ( status);
+        exit( executeSystemCommand(currCommand));
     }
 
     return -1;
@@ -321,8 +317,8 @@ int executePipeCommand2(Command cmd1, Command cmd2) {
 int executePipeCommand(PipeCommand pcmd) {
 
     if(pcmd.nr_cmds == 1){
-        return executeCommand(pcmd.cmds[0]);
-
+        executeCommand(pcmd.cmds[0]);
+        return 0;
     }
 
     int in, pfd[2];
@@ -367,13 +363,12 @@ int executeLogicCommand(LogicCommand lgcmd){
         }
 
         if(slaves[i] == 0){
-            int status = ( executePipeCommand(lgcmd.pcmds[i]));
-            if (status != 0) exit(1);
+            executePipeCommand(lgcmd.pcmds[i]);
         } else {
             int status = 0;
-            wait(&status);
+            waitpid(-1, &status, 0);
             if (status != 0)
-                printf("command not found\n");
+                printf("command not found\n" );
             if(status != 0 && lgcmd.op[i] == 0)
                 return 0;
             if (status == 0 && lgcmd.op[i] == 1) {
@@ -393,11 +388,9 @@ int main() {
     while ( 1 ) {
         char* line = readInput();
         if(strlen(line) > 0){
-//                    printf("-%s-len=%d\n", line, strlen(line));
             add_history(line);
             executeLogicCommand(parseLogicCommand(line));
         }
-
 
     }
 
