@@ -245,7 +245,7 @@ int executeSystemCommand(Command cmd) {
     if (worker == 0) {
         execvp(cmd.raw_command, cmd.arguments );
 //        int wtf = 1 / 0;
-        exit(SIGILL);
+        raise(SIGILL);
     } else {
         int status = 0;
         wait(&status);
