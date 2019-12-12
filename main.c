@@ -79,7 +79,7 @@ Command parseCommand(char *line) {
     int nr_args = 0;
     char *str[MAX_NR_ARGS];
     char *ptr;
-    char sep[] = " ";
+    char sep[] = " "; /// split by space
     ptr = strtok(line,sep);
     while(ptr != NULL){
         str[nr_args] = malloc(strlen(ptr) + 1);
@@ -88,7 +88,6 @@ Command parseCommand(char *line) {
         ptr = strtok(NULL,sep);
         nr_args++;
     }
-    //TODO CHECK if empty or something else
 
     Command currCommand;
     strcpy(currCommand.raw_command,str[0]);
@@ -178,7 +177,6 @@ LogicCommand parseLogicCommand(const char *line){
             idx = 0;
         } else{
             str[cnt][idx] = line[i];
-//            printf(" copy cnt %d idx %d from line %d\n", cnt, idx, i);
             str[cnt][idx+1] = '\0';
             idx++;
         }
@@ -188,7 +186,6 @@ LogicCommand parseLogicCommand(const char *line){
     for(int i = 0;  i <= cnt; i++){
         lgc.pcmds[i] = parsePipeCommand(str[i]);
         free(str[i]);
-//        printf("cmd found = %s from string: %s \n",lgc.pcmds[i].raw_command, str[i]);
     }
 
     lgc.nr_pcmds = cnt;
@@ -280,17 +277,19 @@ int executeCommand(Command currCommand){
 int spawnProcess(int in, int out, Command cmd) {
     pid_t pid;
     if ( (pid = fork() == 0) ) {
-        if (in != 0) {
-            dup2(in, 0);
+        if (in != STDIN_FILENO) {
+            dup2(in, STDIN_FILENO);
             close(in);
         }
 
-        if (out != 1) {
-            dup2(out, 1);
+        if (out != STDOUT_FILENO) {
+            dup2(out, STDOUT_FILENO);
             close(out);
         }
 
         return executeCommand(cmd);
+    } else {
+        wait(NULL);
     }
     return pid;
 }
@@ -320,16 +319,15 @@ int executePipeCommand2(Command cmd1, Command cmd2) {
 }
 
 int executePipeCommand(PipeCommand pcmd) {
-    //TODO
+
     if(pcmd.nr_cmds == 1){
         return executeCommand(pcmd.cmds[0]);
 
     }
 
-    pid_t pid;
     int in, pfd[2];
 
-    in = 0;
+    in = STDIN_FILENO;
     for (int i = 0; i < pcmd.nr_cmds - 1; i++) {
         pipe(pfd);
 
@@ -340,8 +338,8 @@ int executePipeCommand(PipeCommand pcmd) {
         in = pfd[0];
     }
 
-    if (in != 0) {
-        dup2(in, 0);
+    if (in != STDIN_FILENO) {
+        dup2(in, STDIN_FILENO);
     }
 
     return executeCommand(pcmd.cmds[pcmd.nr_cmds - 1]);
@@ -354,6 +352,7 @@ int executeLogicCommand(LogicCommand lgcmd){
     for(int i = 0; i <= lgcmd.nr_pcmds; i++){
 
 
+        /// cd must run on parent process
         if (lgcmd.pcmds[i].nr_cmds == 1) {
             if (lgcmd.pcmds[i].cmds[0].commandType == CUSTOM) {
                 executeCommand(lgcmd.pcmds[i].cmds[0]);
