@@ -12,7 +12,7 @@
 #pragma clang diagnostic ignored "-Wmissing-noreturn"
 
 #define BUFF_SIZE (1024)
-#define NUM_COMMANDS (3)
+#define NUM_COMMANDS (1)
 #define MAX_NR_ARGS (10)
 #define MAX_CHAIN_CMD (10)
 
@@ -44,9 +44,7 @@ typedef struct{
 char *currentDir[BUFF_SIZE];
 
 char *custom_commands[NUM_COMMANDS] = {
-        "cd",
-        "exit",
-        "help"
+        "cd"
 };
 
 const char *getUserName()
@@ -198,10 +196,6 @@ LogicCommand parseLogicCommand(const char *line){
     return  lgc;
 }
 
-void openHelp(){
-    puts("\n  Welcome! I heard that you need help. See documentation :)");
-}
-
 /**
  * only call this from a child process
  * @param currCommand
@@ -210,30 +204,14 @@ void openHelp(){
 int executeCustomCommand(Command currCommand){
     switch (currCommand.id_custom_command){
         case 0: {
-            char *directory=malloc(BUFF_SIZE);
-
-            getcwd(directory,BUFF_SIZE);
-            printf("dir before: %s\n",directory);
-
-
-            chdir(currCommand.arguments[1]);
-
-            getcwd(directory, sizeof(directory));
-            printf("dir after: %s\n",directory);
-            return 0;
+            printf("trying to cd\n");
+             exit(-1);
             break;
         }
-        case 1:{
-            printf("GOODBYE\n");
-            exit(0);
-        }
-        case 2:{
-            openHelp();
-            return 1;
-        }
+
         default: {
             printf("Unknown command\n");
-            return -1;
+            exit(-1);
         }
     }
 }
@@ -262,7 +240,7 @@ int executeSystemCommand(Command cmd) {
  */
 int executeCommand(Command currCommand){
     if(currCommand.commandType == CUSTOM){
-        return ( executeCustomCommand(currCommand));
+        exit( executeCustomCommand(currCommand));
 
     }
     if (currCommand.commandType == SYSTEM) {
@@ -272,25 +250,12 @@ int executeCommand(Command currCommand){
     return -1;
 }
 
-int spawnProcess(int in, int out, Command cmd) {
-    pid_t pid;
-    if ( (pid = fork() == 0) ) {
-        if (in != 0) {
-            dup2(in, 0);
-            close(in);
-        }
-
-        if (out != 1) {
-            dup2(out, 1);
-            close(out);
-        }
-
-        return executeCommand(cmd);
+int executePipeCommand(PipeCommand pcmd) {
+    //TODO
+    if(pcmd.nr_cmds == 1){
+        executeCommand(pcmd.cmds[0]);
     }
-    return pid;
-}
 
-int executePipeCommand2(Command cmd1, Command cmd2) {
     int pid;
     int pipefd[2];
 
@@ -298,75 +263,37 @@ int executePipeCommand2(Command cmd1, Command cmd2) {
 
     pid = fork();
     if (pid == 0) {
-        dup2(pipefd[0], STDIN_FILENO);
+        dup2(pipefd[0], 0);
         close(pipefd[1]);
-        executeCommand(cmd2);
+        executeCommand(pcmd.cmds[1]);
+//        Command cmd = pcmd.cmds[1];
+//        execvp(cmd.raw_command, cmd.arguments);
     } else {
-        dup2(pipefd[1], STDOUT_FILENO);
+        dup2(pipefd[1], 1);
         close(pipefd[0]);
 
-        executeCommand(cmd1);
-
-        wait(NULL);
-    }
-
-
-    return 0;
-}
-
-int executePipeCommand(PipeCommand pcmd) {
-    //TODO
-    if(pcmd.nr_cmds == 1){
         executeCommand(pcmd.cmds[0]);
     }
 
-    pid_t pid;
-    int in, pfd[2];
-
-    in = 0;
-    for (int i = 0; i < pcmd.nr_cmds - 1; i++) {
-        pipe(pfd);
-
-        spawnProcess(in, pfd[1], pcmd.cmds[i]);
-
-        close(pfd[1]);
-
-        in = pfd[0];
-    }
-
-    if (in != 0) {
-        dup2(in, 0);
-    }
-
-    return executeCommand(pcmd.cmds[pcmd.nr_cmds - 1]);
-
+    wait(NULL);
+    return 0;
 }
 
 int executeLogicCommand(LogicCommand lgcmd){
     pid_t slaves[MAX_CHAIN_CMD] ;
 
     for(int i = 0; i <= lgcmd.nr_pcmds; i++){
-
-
-        if (lgcmd.pcmds[i].nr_cmds == 1) {
-            if (lgcmd.pcmds[i].cmds[0].commandType == CUSTOM) {
-                executeCommand(lgcmd.pcmds[i].cmds[0]);
-                continue;
-            }
-        }
-
         slaves[i] = fork();
         if(slaves[i] < 0){
             printf("ERROR: Unable to fork\n\n");
             return -1;
         }
-
         if(slaves[i] == 0){
             executePipeCommand(lgcmd.pcmds[i]);
         } else {
             int status = 0;
             wait(&status);
-//            printf("command %d exited with status %d\n", i, status);
+//            printf("command %d exited with status %d", i, status);
             if(status != 0 && lgcmd.op[i] == 0)
                 return 0;
             if (status == 0 && lgcmd.op[i] == 1) {
@@ -376,8 +303,6 @@ int executeLogicCommand(LogicCommand lgcmd){
     }
     return 0;
 }
-
-
 
 int main() {
 
