@@ -245,12 +245,15 @@ int executeSystemCommand(Command cmd) {
         printf("Error: Unable to fork child \n\n");
         return -1;
     }
+    int status = 0;
     if (worker == 0) {
         execvp(cmd.raw_command, cmd.arguments );
+//        status = -1;
+        exit(-1);
     } else {
-        int status = 0;
+
         wait(&status);
-//        printf("command %s return status %d\n", cmd.raw_command, status);
+//        printf("system command %s return status %d\n", cmd.raw_command, status);
         return status;
     }
     return 0;
@@ -266,7 +269,9 @@ int executeCommand(Command currCommand){
 
     }
     if (currCommand.commandType == SYSTEM) {
-        exit( executeSystemCommand(currCommand));
+        int status = executeSystemCommand(currCommand);
+//        printf("returned status %d\n", status);
+        return ( status);
     }
 
     return -1;
@@ -317,7 +322,8 @@ int executePipeCommand2(Command cmd1, Command cmd2) {
 int executePipeCommand(PipeCommand pcmd) {
     //TODO
     if(pcmd.nr_cmds == 1){
-        executeCommand(pcmd.cmds[0]);
+        return executeCommand(pcmd.cmds[0]);
+
     }
 
     pid_t pid;
@@ -362,11 +368,13 @@ int executeLogicCommand(LogicCommand lgcmd){
         }
 
         if(slaves[i] == 0){
-            executePipeCommand(lgcmd.pcmds[i]);
+            int status = ( executePipeCommand(lgcmd.pcmds[i]));
+            if (status != 0) exit(1);
         } else {
             int status = 0;
             wait(&status);
-//            printf("command %d exited with status %d\n", i, status);
+            if (status != 0)
+                printf("command not found\n");
             if(status != 0 && lgcmd.op[i] == 0)
                 return 0;
             if (status == 0 && lgcmd.op[i] == 1) {
@@ -385,10 +393,13 @@ int main() {
 
     while ( 1 ) {
         char* line = readInput();
-        if(line != '\0'){
+        if(strlen(line) > 0){
+//                    printf("-%s-len=%d\n", line, strlen(line));
             add_history(line);
+            executeLogicCommand(parseLogicCommand(line));
         }
-        executeLogicCommand(parseLogicCommand(line));
+
+
     }
 
 
